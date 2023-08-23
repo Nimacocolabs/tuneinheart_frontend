@@ -20,6 +20,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
   @override
   Widget build(BuildContext context) {
+    double screenHeight = MediaQuery.of(context).size.height;
     return Scaffold(
       backgroundColor: Colors.white,
       body: Container(
@@ -30,7 +31,7 @@ class _SplashScreenState extends State<SplashScreen> {
                 fit: BoxFit.fill)),
         child: Column(
           children: [
-            SizedBox(height: 700),
+            SizedBox(height: screenHeight * 0.95),
             FutureBuilder<String>(
                 future: _getAppVersion(),
                 builder:

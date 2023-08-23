@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:perfect_volume_control/perfect_volume_control.dart';
@@ -27,7 +26,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   Timer? _timer;
-  int _interval = 5;
+  int _interval = 2;
   List respone = [];
   var resp= "";
   int flag = 0;
@@ -39,13 +38,15 @@ class _HomeScreenState extends State<HomeScreen> {
   List stationList = [];
   List<String>? metadata;
   Map respo = {};
-  bool _pauseApi = false;
+  // bool _pauseApi = false;
   List<dynamic>  listAds=[] ;
   final audioPlayer = AudioPlayer();
   //////icecast radio api////////////////////////
-  String  streamUrl1 = "https://1143-117-201-143-205.ngrok-free.app/stream";
+  String  streamUrl1 = "http://139.84.138.193:8000/stream";
+
   ////////////////////api for normal radio////////////////////////////////
-String streamUrl2 ="https://cocoalabs.in/RadioApp/public/api/stream";
+  String streamUrl2 ="https://cocoalabs.in/RadioApp/public/api/stream";
+
   Future getPosts() async {
     print("Get order");
     final response = await http.get(Uri.parse('https://cocoalabs.in/RadioApp/public/api/ads'));
@@ -58,7 +59,6 @@ String streamUrl2 ="https://cocoalabs.in/RadioApp/public/api/stream";
     }
     else{
       throw Exception('Failed to load post');
-
     }
     return response;
   }
@@ -100,15 +100,6 @@ String streamUrl2 ="https://cocoalabs.in/RadioApp/public/api/stream";
     );
   }
 
-
-  void _startTimer() {
-    _timer = Timer.periodic(Duration(seconds: _interval), (Timer timer) {
-      if (!isPlaying && !_pauseApi) {
-        // Call your API function here
-        getFlag();
-      }
-    });
-  }
 
   @override
   void initState() {
@@ -157,18 +148,50 @@ String streamUrl2 ="https://cocoalabs.in/RadioApp/public/api/stream";
   }
 
 
+  // void _playAudio(int flagvalue) async {
+  //   print("flag==>${flag == 1 ? streamUrl1 : streamUrl2}");
+  //
+  //     await audioPlayer.play(UrlSource(flag == 1 ? streamUrl1 : streamUrl2));
+  //
+  // }
+  // void _playAudio(int flagvalue) async {
+  //   if (flagvalue == 1) {
+  //     await audioPlayer.play(UrlSource(streamUrl1));
+  //   } else {
+  //     await audioPlayer.play(UrlSource(streamUrl2));
+  //   }
+  //   setState(() {
+  //     isPlaying = true;
+  //   });
+  // }
   void _playAudio(int flagvalue) async {
-    print("flag==>${flag}");
-
-      await audioPlayer.play(UrlSource(flag == 1 ? streamUrl1 : streamUrl2));
-
+    try {
+      if (flagvalue == 1) {
+        await audioPlayer.play(UrlSource(streamUrl1));
+      } else {
+        await audioPlayer.play(UrlSource(streamUrl2));
+      }
+      setState(() {
+        isPlaying = true;
+      });
+    } catch (error) {
+      // Handle error if the stream cannot be played
+      print("Error playing audio: $error");
+    }
   }
 
+
+  // void _pauseAudio() async {
+  //   await audioPlayer.pause();
+  //   setState(() {
+  //     isPlaying = true;
+  //   });
+  // }
 
   void _pauseAudio() async {
     await audioPlayer.pause();
     setState(() {
-      _pauseApi = true;
+      isPlaying = false;
     });
   }
 
@@ -235,6 +258,10 @@ String streamUrl2 ="https://cocoalabs.in/RadioApp/public/api/stream";
   Future<void> pause() async {
     radioClass.pause();
     checkStation();
+  }
+  void _pauseAll() {
+    _pauseAudio(); // Pause the audio player
+    _timer?.cancel(); // Cancel the periodic API calls
   }
 
   void checkStation() {
@@ -363,10 +390,11 @@ String streamUrl2 ="https://cocoalabs.in/RadioApp/public/api/stream";
                                           fixedSize: const Size(60, 60),
                                         ),
                                         onPressed: () {
-                                          _pauseAudio();
+                                          _pauseAll(); // Pause audio player and API calls
                                         },
                                         child: Icon(Icons.pause, color: ColorConstant.whiteA700, size: 30),
                                       )
+
                                           : ElevatedButton(
                                             style: ElevatedButton.styleFrom(
                                                 shape: const CircleBorder(),
@@ -558,7 +586,8 @@ String streamUrl2 ="https://cocoalabs.in/RadioApp/public/api/stream";
               leading: Icon(Icons.share,color: Colors.black,),
               onTap: (){
                 Navigator.pop(context);
-                Share.share('Visit Tuneinheart $link');
+                Share.share('Hi, I am listening radio on Tuneinheart.'
+                    'Download and enjoy the application from $link');
               },
               title: Text("Share"),
             ),

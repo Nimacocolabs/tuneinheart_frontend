@@ -31,7 +31,7 @@ class TuneInApp extends StatelessWidget {
       theme: ThemeData(
           primarySwatch: Colors.red,
           fontFamily: 'Montserrat'),
-      home:SplashScreen(),
+       home:SplashScreen(),
     );
   }
 }
