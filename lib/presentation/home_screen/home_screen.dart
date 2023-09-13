@@ -76,7 +76,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     else{
       throw Exception('Failed to load post');
-
     }
     return response;
   }
@@ -134,7 +133,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _initAudioPlayer(int flag) {
     audioPlayer.onPlayerStateChanged.listen((PlayerState state) {
       if (state == PlayerState.completed) {
-        _playAudio(flag); // Call _playAudio() again to replay the same URL.
+        _playAudio(flag);
       } else if (state == PlayerState.playing) {
         setState(() {
           isPlaying = true;
