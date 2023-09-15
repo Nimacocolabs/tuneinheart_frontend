@@ -1,8 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:perfect_volume_control/perfect_volume_control.dart';
@@ -16,7 +20,6 @@ import 'package:tuneinheartapplication/theme/app_style.dart';
 import 'package:tuneinheartapplication/widgets/radio.dart';
 import 'package:http/http.dart' as http;
 
-
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
 
@@ -28,7 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _timer;
   int _interval = 2;
   List respone = [];
-  var resp= "";
+  var resp = "";
   int flag = 0;
   bool isPlaying = false;
   double currentvol = 0.5;
@@ -39,58 +42,91 @@ class _HomeScreenState extends State<HomeScreen> {
   List<String>? metadata;
   Map respo = {};
   // bool _pauseApi = false;
-  List<dynamic>  listAds=[] ;
+  List<dynamic> listAds = [];
   final audioPlayer = AudioPlayer();
   //////icecast radio api////////////////////////
-  String  streamUrl1 = "http://139.84.138.193:8000/stream";
+  String streamUrl1 = "http://139.84.138.193:8000/stream";
 
   ////////////////////api for normal radio////////////////////////////////
-  String streamUrl2 ="https://cocoalabs.in/RadioApp/public/api/stream";
+  String streamUrl2 = "https://cocoalabs.in/RadioApp/public/api/stream";
+  // String streamUrl2 = "https://d947-61-3-117-7.ngrok-free.app/api/stream";
+
+  String? _deviceId;
 
   Future getPosts() async {
     print("Get order");
-    final response = await http.get(Uri.parse('https://cocoalabs.in/RadioApp/public/api/ads'));
+    final response = await http
+        .get(Uri.parse('https://cocoalabs.in/RadioApp/public/api/ads'));
     print("Response${response.body}");
     var res = json.decode(response.body);
-    respo= res;
+    respo = res;
     listAds = respo["ads"];
     if (response.statusCode == 200) {
       _buildAdsList(listAds);
-    }
-    else{
+    } else {
       throw Exception('Failed to load post');
     }
     return response;
   }
 
-  Future getFlag() async{
+  Future getFlag() async {
     print("Get Flag");
-    final response = await http.get(Uri.parse('https://cocoalabs.in/RadioApp/public/api/get-radio-status'));
+    final response = await http.get(
+        Uri.parse('https://cocoalabs.in/RadioApp/public/api/get-radio-status'));
     print("Response${response.body}");
     var res = json.decode(response.body);
-    respo= res;
+    respo = res;
     if (response.statusCode == 200) {
       flag = res['status'];
       print("response=>${flag}");
-     _playAudio(flag);
-    }
-    else{
+      _playAudio(flag);
+    } else {
       throw Exception('Failed to load post');
-
     }
     return response;
+  }
+
+  void _getDeviceId() async {
+    final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    String? deviceId;
+
+    if (kIsWeb) {
+      final webBrowserInfo = await deviceInfo.webBrowserInfo;
+      deviceId =
+          '${webBrowserInfo.vendor ?? '-'} + ${webBrowserInfo.userAgent ?? '-'} + ${webBrowserInfo.hardwareConcurrency.toString()}';
+    } else if (Platform.isAndroid) {
+      final androidInfo = await deviceInfo.androidInfo;
+      deviceId = androidInfo.id;
+    } else if (Platform.isIOS) {
+      final iosInfo = await deviceInfo.iosInfo;
+      deviceId = iosInfo.identifierForVendor;
+    } else if (Platform.isLinux) {
+      final linuxInfo = await deviceInfo.linuxInfo;
+      deviceId = linuxInfo.machineId;
+    } else if (Platform.isWindows) {
+      final windowsInfo = await deviceInfo.windowsInfo;
+      deviceId = windowsInfo.deviceId;
+    } else if (Platform.isMacOS) {
+      final macOsInfo = await deviceInfo.macOsInfo;
+      deviceId = macOsInfo.systemGUID;
+    }
+
+    setState(() {
+      _deviceId = deviceId;
+    });
   }
 
   Widget ErrorDesign() {
     return Padding(
-      padding: const EdgeInsets.only(top: 30.0,bottom: 30,left: 15,right: 15),
+      padding:
+          const EdgeInsets.only(top: 30.0, bottom: 30, left: 15, right: 15),
       child: Container(
         alignment: Alignment.center,
         child: Center(
           child: const Text(
             'Kindly Connect to Internet..Please wait',
             style: TextStyle(
-              color:Colors.redAccent,
+              color: Colors.redAccent,
               fontSize: 16.0,
               fontWeight: FontWeight.bold,
             ),
@@ -100,17 +136,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
   @override
   void initState() {
     super.initState();
-    radioClass =  RadioClass();
+    _getDeviceId();
+    radioClass = RadioClass();
     readJson();
-    PerfectVolumeControl.hideUI = false; //set if system UI is hided or not on volume up/down
-    Future.delayed(Duration.zero,() async {
+    PerfectVolumeControl.hideUI =
+        false; //set if system UI is hided or not on volume up/down
+    Future.delayed(Duration.zero, () async {
       currentvol = await PerfectVolumeControl.getVolume();
-      setState(() {
-      });
+      setState(() {});
     });
     PerfectVolumeControl.stream.listen((volume) {
       setState(() {
@@ -123,6 +159,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
     super.initState();
   }
+
   @override
   void dispose() {
     super.dispose();
@@ -134,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _initAudioPlayer(int flag) {
     audioPlayer.onPlayerStateChanged.listen((PlayerState state) {
       if (state == PlayerState.completed) {
-        _playAudio(flag); // Call _playAudio() again to replay the same URL.
+        _playAudio(flag);
       } else if (state == PlayerState.playing) {
         setState(() {
           isPlaying = true;
@@ -146,7 +183,6 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     });
   }
-
 
   // void _playAudio(int flagvalue) async {
   //   print("flag==>${flag == 1 ? streamUrl1 : streamUrl2}");
@@ -169,7 +205,29 @@ class _HomeScreenState extends State<HomeScreen> {
       if (flagvalue == 1) {
         await audioPlayer.play(UrlSource(streamUrl1));
       } else {
-        await audioPlayer.play(UrlSource(streamUrl2));
+        print("Device Id-->${_deviceId}");
+        Map<String, dynamic> formData = {
+          'device_id': _deviceId,
+        };
+        Map<String, String> headers = {
+
+        };
+        final response = await http.post(
+          Uri.parse(streamUrl2),
+          body: formData,
+          headers:headers
+        );
+        print("Response-->${response.statusCode}");
+        if(response.statusCode == 200)
+          {
+            final audioUrl = response.body;
+            await audioPlayer.play(UrlSource(streamUrl2));
+          }
+        else
+          {
+            throw Exception('Failed to make the request');
+          }
+        // await audioPlayer.play(UrlSource(streamUrl2));
       }
       setState(() {
         isPlaying = true;
@@ -181,13 +239,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
-  // void _pauseAudio() async {
-  //   await audioPlayer.pause();
-  //   setState(() {
-  //     isPlaying = true;
-  //   });
-  // }
-
   void _pauseAudio() async {
     await audioPlayer.pause();
     setState(() {
@@ -196,12 +247,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
-  // void _stopAudio() async {
-  //   await audioPlayer.stop();
-  // }
-
   Future<void> readJson() async {
-    final String response = await rootBundle.loadString('assets/json/station.json');
+    final String response =
+        await rootBundle.loadString('assets/json/station.json');
     List<dynamic> data = json.decode(response);
 
     setState(() {
@@ -233,14 +281,14 @@ class _HomeScreenState extends State<HomeScreen> {
       isPlayCardVisible = true;
       stationList.asMap().forEach((index, items) {
         if (items == item) {
-          if(item['isPlay'] == true) {
+          if (item['isPlay'] == true) {
             stationList[index]['isPlay'] = false;
             radioClass.pause();
           } else {
             stationList[index]['isPlay'] = true;
             Future.delayed(
               const Duration(seconds: 1),
-                  () => radioClass.play(),
+              () => radioClass.play(),
             );
           }
         } else {
@@ -259,6 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
     radioClass.pause();
     checkStation();
   }
+
   void _pauseAll() {
     _pauseAudio(); // Pause the audio player
     _timer?.cancel(); // Cancel the periodic API calls
@@ -267,14 +316,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void checkStation() {
     stationList.asMap().forEach((index, items) {
       if (items == currentlyPlaying) {
-        if(currentlyPlaying['isPlay'] == true) {
+        if (currentlyPlaying['isPlay'] == true) {
           stationList[index]['isPlay'] = false;
           radioClass.pause();
         } else {
           stationList[index]['isPlay'] = true;
           Future.delayed(
             const Duration(seconds: 1),
-                () => radioClass.play(),
+            () => radioClass.play(),
           );
         }
       } else {
@@ -285,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-  print("Flag-->${flag}");
+    print("Flag-->${flag}");
     GlobalKey<ScaffoldState> _scaffoldState = GlobalKey<ScaffoldState>();
     return SafeArea(
       child: Scaffold(
@@ -321,27 +370,28 @@ class _HomeScreenState extends State<HomeScreen> {
                                 Positioned(
                                   left: 10,
                                   child: IconButton(
-                                    icon: Icon(Icons.menu,color: Colors.white,),
+                                    icon: Icon(
+                                      Icons.menu,
+                                      color: Colors.white,
+                                    ),
                                     onPressed: () {
                                       _scaffoldState.currentState!.openDrawer();
                                     },
                                   ),
                                 ),
                                 Padding(
-                                  padding: const EdgeInsets.only(top:50),
+                                  padding: const EdgeInsets.only(top: 50),
                                   child: Column(
                                     mainAxisSize: MainAxisSize.max,
                                     crossAxisAlignment:
-                                    CrossAxisAlignment.center,
-                                    mainAxisAlignment:
-                                    MainAxisAlignment.start,
+                                        CrossAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment.start,
                                     children: [
                                       Text(
                                         "Playing  Now",
                                         maxLines: null,
                                         textAlign: TextAlign.left,
-                                        style: AppStyle
-                                            .txtSFProDisplayBold30,
+                                        style: AppStyle.txtSFProDisplayBold30,
                                       ),
                                       Container(
                                         width: 200,
@@ -352,22 +402,29 @@ class _HomeScreenState extends State<HomeScreen> {
                                           "Enjoy the best top musics",
                                           maxLines: null,
                                           textAlign: TextAlign.center,
-                                          style: AppStyle
-                                              .txtSFProDisplayRegular16,
+                                          style:
+                                              AppStyle.txtSFProDisplayRegular16,
                                         ),
                                       ),
-                                      SizedBox(height: 10,),
+                                      SizedBox(
+                                        height: 10,
+                                      ),
                                       Container(
-                                         height: 400,
+                                          height: 400,
                                           width: 360,
                                           child: FutureBuilder(
                                               future: getPosts(),
-                                              builder: (BuildContext context,snapshot) {
-                                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                              builder: (BuildContext context,
+                                                  snapshot) {
+                                                if (snapshot.connectionState ==
+                                                    ConnectionState.waiting) {
                                                   return Center(
                                                     child: Padding(
-                                                      padding: const EdgeInsets.all(20.0),
-                                                      child: CircularProgressIndicator(),
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                              20.0),
+                                                      child:
+                                                          CircularProgressIndicator(),
                                                     ),
                                                   );
                                                 } else {
@@ -376,35 +433,45 @@ class _HomeScreenState extends State<HomeScreen> {
                                                       child: ErrorDesign(),
                                                     );
                                                   } else {
-                                                    return _buildAdsList(listAds);
+                                                    return _buildAdsList(
+                                                        listAds);
                                                   }
                                                 }
-                                              })
-                                      ),
+                                              })),
                                       isPlaying
-                                        ? ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          shape: const CircleBorder(),
-                                          backgroundColor: ColorConstant.pink500,
-                                          elevation: 4.0,
-                                          fixedSize: const Size(60, 60),
-                                        ),
-                                        onPressed: () {
-                                          _pauseAll(); // Pause audio player and API calls
-                                        },
-                                        child: Icon(Icons.pause, color: ColorConstant.whiteA700, size: 30),
-                                      )
-
-                                          : ElevatedButton(
-                                            style: ElevatedButton.styleFrom(
+                                          ? ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
                                                 shape: const CircleBorder(),
-                                                backgroundColor: ColorConstant.pink500, //button's fill color
+                                                backgroundColor:
+                                                    ColorConstant.pink500,
                                                 elevation: 4.0,
-                                                fixedSize: const Size(60,60)
+                                                fixedSize: const Size(60, 60),
+                                              ),
+                                              onPressed: () {
+                                                _pauseAll(); // Pause audio player and API calls
+                                              },
+                                              child: Icon(Icons.pause,
+                                                  color:
+                                                      ColorConstant.whiteA700,
+                                                  size: 30),
+                                            )
+                                          : ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                  shape: const CircleBorder(),
+                                                  backgroundColor: ColorConstant
+                                                      .pink500, //button's fill color
+                                                  elevation: 4.0,
+                                                  fixedSize:
+                                                      const Size(60, 60)),
+                                              onPressed: () {
+                                                _playAudio(flag);
+                                              },
+                                              child: Icon(
+                                                Icons.play_arrow,
+                                                color: ColorConstant.whiteA700,
+                                                size: 30,
+                                              ),
                                             ),
-                                      onPressed: (){_playAudio(flag);},
-                                      child:Icon(Icons.play_arrow,color: ColorConstant.whiteA700,size: 30,),
-                                      ),
                                       // Visibility(
                                       //   visible: flag==0,
                                       //   child: ElevatedButton(
@@ -422,31 +489,40 @@ class _HomeScreenState extends State<HomeScreen> {
                                       //     // Icon(Icons.play_arrow,color: ColorConstant.whiteA700,size: 30,)
                                       //   ),
                                       // ),
-                                      SizedBox(height: 10,),
+                                      SizedBox(
+                                        height: 10,
+                                      ),
                                       Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
-                                          Icon(Icons.volume_down,color: ColorConstant.whiteA700,),
+                                          Icon(
+                                            Icons.volume_down,
+                                            color: ColorConstant.whiteA700,
+                                          ),
                                           SizedBox(
                                             width: 240,
                                             child: Slider(
                                               activeColor: Colors.pink,
                                               value: currentvol,
-                                              onChanged: (newvol){
+                                              onChanged: (newvol) {
                                                 currentvol = newvol;
-                                                PerfectVolumeControl.setVolume(newvol); //set new volume
-                                                setState(() {
-                                                });
+                                                PerfectVolumeControl.setVolume(
+                                                    newvol); //set new volume
+                                                setState(() {});
                                               },
                                               min: 0, //
-                                              max:  3,
-                                              divisions:400,
+                                              max: 3,
+                                              divisions: 400,
                                             ),
                                           ),
-                                          Icon(Icons.volume_up,color: ColorConstant.whiteA700),
+                                          Icon(Icons.volume_up,
+                                              color: ColorConstant.whiteA700),
                                         ],
                                       ),
-                                      SizedBox(height: 40,)
+                                      SizedBox(
+                                        height: 40,
+                                      )
                                     ],
                                   ),
                                 ),
@@ -475,68 +551,71 @@ class _HomeScreenState extends State<HomeScreen> {
             aspectRatio: 2 / (5 / 3),
             enableInfiniteScroll: false,
             enlargeCenterPage: true,
-            viewportFraction: 1
-        ),
+            viewportFraction: 1),
         itemBuilder: (context, index, realIdx) {
           return CachedNetworkImage(
             fit: BoxFit.fill,
             imageUrl: adsList[index]["image"],
-            placeholder:
-                (context, url) =>
-                Center(
-                  child:
-                  CircularProgressIndicator(),
-                ),
-            errorWidget:
-                (context, url, error) =>
-                ClipRRect(
-                  borderRadius:
-                  BorderRadius.circular(
-                      12),
-                  child: Image(
-                    image: AssetImage(
-                        'assets/images/dp.png'),
-                    // height: 60,
-                    // width: 60,
-                  ),
-                ),
+            placeholder: (context, url) => Center(
+              child: CircularProgressIndicator(),
+            ),
+            errorWidget: (context, url, error) => ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image(
+                image: AssetImage('assets/images/dp.png'),
+                // height: 60,
+                // width: 60,
+              ),
+            ),
           );
         });
   }
 
   Widget _drawer() {
-    String link="https://play.google.com/store/apps/details?id=com.app.tuneinheartapp&hl=en-IN";
+    String link =
+        "https://play.google.com/store/apps/details?id=com.app.tuneinheartapp&hl=en-IN";
     print("Drawer show");
     return Container(
       width: 220,
       child: Drawer(
         elevation: 1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12)
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         // backgroundColor: secondaryColor,
         // width: screenWidth,
-        child:ListView(
+        child: ListView(
           children: [
             SizedBox(
               height: 100,
               child: DrawerHeader(
                 decoration: BoxDecoration(
-                   color: Color(0xFF01011D),
-                  borderRadius: BorderRadius.only( topRight: Radius.circular(12.0),)
-                  // gradient: LinearGradient(
-                  //   colors: [ColorConstant.pink800,Colors.white,ColorConstant.pink800,],),
-                ),
-                child:Column(
+                    color: Color(0xFF01011D),
+                    borderRadius: BorderRadius.only(
+                      topRight: Radius.circular(12.0),
+                    )
+                    // gradient: LinearGradient(
+                    //   colors: [ColorConstant.pink800,Colors.white,ColorConstant.pink800,],),
+                    ),
+                child: Column(
                   children: [
-                    SizedBox(height: 10,),
+                    SizedBox(
+                      height: 10,
+                    ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Image.asset("assets/images/app_logo.png",height:45,),
-                        SizedBox(width: 10,),
+                        Image.asset(
+                          "assets/images/app_logo.png",
+                          height: 45,
+                        ),
+                        SizedBox(
+                          width: 10,
+                        ),
                         // Image.asset("assets/images/logo name-06.png",height:50,width: 130,),
-                        Image.asset("assets/images/logo name-05.png",height:50,width: 130,),
+                        Image.asset(
+                          "assets/images/logo name-05.png",
+                          height: 50,
+                          width: 130,
+                        ),
                         // Text("Tuneinheart",style:TextStyle(fontSize: 20,
                         //   fontWeight: FontWeight.bold,)),
                       ],
@@ -555,18 +634,26 @@ class _HomeScreenState extends State<HomeScreen> {
             //   title: Text("My Favourites"),
             // ),
             ListTile(
-              leading: Icon(Icons.music_note,color: Colors.black,),
-              onTap: (){
+              leading: Icon(
+                Icons.music_note,
+                color: Colors.black,
+              ),
+              onTap: () {
                 Navigator.pop(context);
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => SongRequestFormScreen()));
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => SongRequestFormScreen()));
               },
               title: Text("Request Song"),
             ),
             Divider(),
             ListTile(
-              leading: Icon(Icons.info,color: Colors.black,),
-              onTap: (){
+              leading: Icon(
+                Icons.info,
+                color: Colors.black,
+              ),
+              onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (context) => AboutUsScreen()));
@@ -574,8 +661,11 @@ class _HomeScreenState extends State<HomeScreen> {
               title: Text("About Us"),
             ),
             ListTile(
-              leading: Icon(Icons.star,color: Colors.black,),
-              onTap: (){
+              leading: Icon(
+                Icons.star,
+                color: Colors.black,
+              ),
+              onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context,
                     MaterialPageRoute(builder: (context) => RateUsScreen()));
@@ -583,8 +673,11 @@ class _HomeScreenState extends State<HomeScreen> {
               title: Text("Rate Us"),
             ),
             ListTile(
-              leading: Icon(Icons.share,color: Colors.black,),
-              onTap: (){
+              leading: Icon(
+                Icons.share,
+                color: Colors.black,
+              ),
+              onTap: () {
                 Navigator.pop(context);
                 Share.share('Hi, I am listening radio on Tuneinheart.'
                     'Download and enjoy the application from $link');
@@ -596,5 +689,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
 }
