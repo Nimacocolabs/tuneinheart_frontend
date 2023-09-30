@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:tuneinheartapplication/Utilities/color_constant.dart';
 import 'package:tuneinheartapplication/Utilities/size_utils.dart';
@@ -7,11 +11,55 @@ import 'package:tuneinheartapplication/widgets/custom_button.dart';
 
 
 
-class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({Key? key})
-      : super(
-    key: key,
-  );
+class WelcomeScreen extends StatefulWidget {
+  const WelcomeScreen({Key? key}) : super(key: key);
+
+  @override
+  State<WelcomeScreen> createState() => _WelcomeScreenState();
+}
+
+
+class _WelcomeScreenState extends State<WelcomeScreen> {
+
+  String? _deviceId;
+  //Get Device Information
+  void _getDeviceId() async {
+    final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
+    String? deviceId;
+
+    if (kIsWeb) {
+      final webBrowserInfo = await deviceInfo.webBrowserInfo;
+      deviceId =
+      '${webBrowserInfo.vendor ?? '-'} + ${webBrowserInfo.userAgent ?? '-'} + ${webBrowserInfo.hardwareConcurrency.toString()}';
+    } else if (Platform.isAndroid) {
+      final androidInfo = await deviceInfo.androidInfo;
+      deviceId = androidInfo.id;
+    } else if (Platform.isIOS) {
+      final iosInfo = await deviceInfo.iosInfo;
+      deviceId = iosInfo.identifierForVendor;
+    } else if (Platform.isLinux) {
+      final linuxInfo = await deviceInfo.linuxInfo;
+      deviceId = linuxInfo.machineId;
+    } else if (Platform.isWindows) {
+      final windowsInfo = await deviceInfo.windowsInfo;
+      deviceId = windowsInfo.deviceId;
+    } else if (Platform.isMacOS) {
+      final macOsInfo = await deviceInfo.macOsInfo;
+      deviceId = macOsInfo.systemGUID;
+    }
+
+    setState(() {
+      _deviceId = deviceId;
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _getDeviceId();
+    super.initState();
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -105,7 +153,7 @@ class WelcomeScreen extends StatelessWidget {
                                               Navigator.push(
                                                 context,
                                                 MaterialPageRoute(
-                                                    builder: (context) =>  HomeScreen()),
+                                                    builder: (context) =>  HomeScreen(Device_id:_deviceId)),
                                               );
                                             },
                                           ),
