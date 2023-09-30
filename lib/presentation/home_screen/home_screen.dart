@@ -1,11 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
-import 'package:device_info_plus/device_info_plus.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,13 +18,15 @@ import 'package:tuneinheartapplication/widgets/radio.dart';
 import 'package:http/http.dart' as http;
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({Key? key, this.Device_id,}) : super(key: key);
+  final Device_id;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  String audioUrl="";
   Timer? _timer;
   int _interval = 2;
   List respone = [];
@@ -41,17 +40,15 @@ class _HomeScreenState extends State<HomeScreen> {
   List stationList = [];
   List<String>? metadata;
   Map respo = {};
-  // bool _pauseApi = false;
   List<dynamic> listAds = [];
   final audioPlayer = AudioPlayer();
+
   //////icecast radio api////////////////////////
   String streamUrl1 = "http://139.84.138.193:8000/stream";
 
   ////////////////////api for normal radio////////////////////////////////
   String streamUrl2 = "https://cocoalabs.in/RadioApp/public/api/stream";
   // String streamUrl2 = "https://d947-61-3-117-7.ngrok-free.app/api/stream";
-
-  String? _deviceId;
 
   Future getPosts() async {
     print("Get order");
@@ -69,6 +66,55 @@ class _HomeScreenState extends State<HomeScreen> {
     return response;
   }
 
+  Future<void> audio_url() async {
+
+    Map<String, dynamic> formData = {
+      'device_id': "${widget.Device_id}",
+    };
+    print("Data ${formData}");
+    Map<String, String> headers = {
+      'Accept': 'application/json',
+    };
+    print("headers ${headers}");
+    var response = await http.post(
+      Uri.parse('https://cocoalabs.in/RadioApp/public/api/stream'),
+      body: formData,
+      headers: headers,
+    );
+    print("Response-->${response.body}");
+    if (response.statusCode == 200) {
+      final responseBody = response.body;
+      print("Response Body--> $responseBody");
+      final jsonResponse = jsonDecode(responseBody);
+        setState(() {
+          audioUrl = jsonResponse["song"]; // Adjust this based on your API response structure
+        });
+      // String  audioUrl = jsonResponse["song"];
+      print("Audio-->${audioUrl}");
+      await audioPlayer.play(UrlSource(audioUrl));
+    } else {
+      throw Exception('Failed to make the request');
+    }
+
+    // print("Get Flag");
+    // final response = await http.get(
+    //     Uri.parse('https://cocoalabs.in/RadioApp/public/api/get-radio-status'));
+    // print("Response${response.body}");
+    // var res = json.decode(response.body);
+    // respo = res;
+    // if (response.statusCode == 200) {
+    //   setState(() {
+    //     flag = res['status']; // Adjust this based on your API response structure
+    //   });
+    // } else {
+    //   // If the server did not return a 200 OK response, throw an exception.
+    //   throw Exception('Failed to load data');
+    // }
+    //
+    // // Call fetchData again after a delay
+    // await Future.delayed(Duration(seconds: 2)); // Adjust the delay as needed
+  }
+
   Future getFlag() async {
     print("Get Flag");
     final response = await http.get(
@@ -78,42 +124,17 @@ class _HomeScreenState extends State<HomeScreen> {
     respo = res;
     if (response.statusCode == 200) {
       flag = res['status'];
-      print("response=>${flag}");
-      _playAudio(flag);
+      if (flag == 0) {
+        // Call the first API
+         _playAudio(0);
+      } else if (flag == 1) {
+        // Call the second API
+        _playAudio(1);
+      }
     } else {
       throw Exception('Failed to load post');
     }
     return response;
-  }
-
-  void _getDeviceId() async {
-    final DeviceInfoPlugin deviceInfo = DeviceInfoPlugin();
-    String? deviceId;
-
-    if (kIsWeb) {
-      final webBrowserInfo = await deviceInfo.webBrowserInfo;
-      deviceId =
-          '${webBrowserInfo.vendor ?? '-'} + ${webBrowserInfo.userAgent ?? '-'} + ${webBrowserInfo.hardwareConcurrency.toString()}';
-    } else if (Platform.isAndroid) {
-      final androidInfo = await deviceInfo.androidInfo;
-      deviceId = androidInfo.id;
-    } else if (Platform.isIOS) {
-      final iosInfo = await deviceInfo.iosInfo;
-      deviceId = iosInfo.identifierForVendor;
-    } else if (Platform.isLinux) {
-      final linuxInfo = await deviceInfo.linuxInfo;
-      deviceId = linuxInfo.machineId;
-    } else if (Platform.isWindows) {
-      final windowsInfo = await deviceInfo.windowsInfo;
-      deviceId = windowsInfo.deviceId;
-    } else if (Platform.isMacOS) {
-      final macOsInfo = await deviceInfo.macOsInfo;
-      deviceId = macOsInfo.systemGUID;
-    }
-
-    setState(() {
-      _deviceId = deviceId;
-    });
   }
 
   Widget ErrorDesign() {
@@ -139,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _getDeviceId();
+    audio_url();
     radioClass = RadioClass();
     readJson();
     PerfectVolumeControl.hideUI =
@@ -168,66 +189,19 @@ class _HomeScreenState extends State<HomeScreen> {
     radioClass.stop();
   }
 
-  void _initAudioPlayer(int flag) {
-    audioPlayer.onPlayerStateChanged.listen((PlayerState state) {
-      if (state == PlayerState.completed) {
-        _playAudio(flag);
-      } else if (state == PlayerState.playing) {
-        setState(() {
-          isPlaying = true;
-        });
-      } else {
-        setState(() {
-          isPlaying = false;
-        });
-      }
-    });
-  }
-
-  // void _playAudio(int flagvalue) async {
-  //   print("flag==>${flag == 1 ? streamUrl1 : streamUrl2}");
-  //
-  //     await audioPlayer.play(UrlSource(flag == 1 ? streamUrl1 : streamUrl2));
-  //
-  // }
-  // void _playAudio(int flagvalue) async {
-  //   if (flagvalue == 1) {
-  //     await audioPlayer.play(UrlSource(streamUrl1));
-  //   } else {
-  //     await audioPlayer.play(UrlSource(streamUrl2));
-  //   }
-  //   setState(() {
-  //     isPlaying = true;
-  //   });
-  // }
   void _playAudio(int flagvalue) async {
+    print("flagvalue->${flagvalue}");
     try {
       if (flagvalue == 1) {
         await audioPlayer.play(UrlSource(streamUrl1));
       } else {
-        print("Device Id-->${_deviceId}");
-        Map<String, dynamic> formData = {
-          'device_id': _deviceId,
-        };
-        Map<String, String> headers = {
-
-        };
-        final response = await http.post(
-          Uri.parse(streamUrl2),
-          body: formData,
-          headers:headers
-        );
-        print("Response-->${response.statusCode}");
-        if(response.statusCode == 200)
-          {
-            final audioUrl = response.body;
-            await audioPlayer.play(UrlSource(streamUrl2));
-          }
-        else
-          {
-            throw Exception('Failed to make the request');
-          }
-        // await audioPlayer.play(UrlSource(streamUrl2));
+        // Use the audioUrl if available, otherwise, fetch a new one
+        if (audioUrl.isNotEmpty) {
+          await audioPlayer.play(UrlSource(audioUrl));
+        } else {
+          await audio_url(); // Fetch a new audio URL
+          await audioPlayer.play(UrlSource(audioUrl));
+        }
       }
       setState(() {
         isPlaying = true;
@@ -237,6 +211,27 @@ class _HomeScreenState extends State<HomeScreen> {
       print("Error playing audio: $error");
     }
   }
+  void _initAudioPlayer(int flag) {
+    audioPlayer.onPlayerStateChanged.listen((PlayerState state) {
+      print("start........");
+      if (state == PlayerState.completed) {
+        // Audio playback completed, call audio_url to get a new URL
+        audio_url();
+      } else if (state == PlayerState.playing) {
+        setState(() {
+          isPlaying = true;
+        });
+      } else if (state == PlayerState.paused) {
+        // Handle any errors here
+        print("Audio player error: ${audioPlayer.pause()}");
+      } else {
+        setState(() {
+          isPlaying = false;
+        });
+      }
+    });
+  }
+
 
 
   void _pauseAudio() async {
@@ -334,6 +329,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // audio_url();
+    print("Device_Id->${widget.Device_id}");
     print("Flag-->${flag}");
     GlobalKey<ScaffoldState> _scaffoldState = GlobalKey<ScaffoldState>();
     return SafeArea(
