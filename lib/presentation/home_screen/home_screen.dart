@@ -669,6 +669,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               title: Text("Rate Us"),
             ),
+
             ListTile(
               leading: Icon(
                 Icons.share,
