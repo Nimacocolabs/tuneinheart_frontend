@@ -57,7 +57,6 @@ class _SplashScreenState extends State<SplashScreen> {
       ),
     );
   }
-
   Future<String> _getAppVersion() async {
     PackageInfo packageInfo = await PackageInfo.fromPlatform();
     return packageInfo.version;
